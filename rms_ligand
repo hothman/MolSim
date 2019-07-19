@@ -1,0 +1,15 @@
+from rdkit import Chem, RDConfig
+from rdkit.Chem import AllChem, rdMolAlign
+import glob
+
+def alignmol(path2lig1, path2lig2):
+      structure1 = Chem.MolFromMol2File(lig1)
+      structure2 = Chem.MolFromMol2File(lig2)
+      rms=rdMolAlign.AlignMol(structure1, structure2)
+      return rms
+     
+listfiles=glob.glob('*.mol2')  
+
+for ligand1 in listfiles: 
+  for ligand2 in listfiles: 
+    print(alignmol(ligand1, ligand2))
