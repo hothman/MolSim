@@ -1,47 +1,44 @@
 #!usr/bin/env nextflow 
 
 ligands = Channel.fromPath("${params.mol2}/*.mol2")
-receptors = Channel.fromPath("${params.receptors}/*.pdb")
-
+myreceptor = Channel.fromPath("${params.myreceptor}/*.pdb")
+myreceptor2 = Channel.fromPath("${params.myreceptor}/*.pdb")
+myreceptor2.subscribe { println it }
 config_file = Channel.fromPath("${params.PLANTS_config}")
-
-ligands.subscribe { println it } 
+ligands2 = Channel.fromPath("${params.mol2}/*.mol2")
+//ligands.subscribe { println it } 
 
 process prepare_conformer {
 	input:
-		file receptor from receptors
-
+		file receptor from myreceptor
 	output:
 		file("*.mol2") into receptor_mol 
-
 	script: 
 		name = receptor.baseName.replaceFirst(".pdb","")
 
 	"""
 	SPORES_64bit --mode complete $receptor ${name}.mol2 
+	rm *_bad.mol2
 	"""
 }
 
-
 process docking {
+	publishDir './CLC3VS' , mode: 'move', overwrite: true
+	maxForks 10
 	input: 
-		file receptor from receptor_mol
-		file ligand from ligands
+		each file(ligand) from ligands
+		each file(receptor) from receptor_mol
 		file config from config_file
-	output:
-		file "${receptor_name}_${ligand_name}" into couple_rec_lig
-
-		publishDir "virtual_screening", mode: 'copy'
-
-	script:
-		receptor_name = receptor.baseName.replaceFirst(".mol2","")
-		ligand_name = ligand.baseName.replaceFirst(".mol2","")
+	output: 
+		file "*mol2VSdir*" into VSfolder 
 
 	"""
-	sed -i 's/XXXXX/${receptor_name}.mol2/' $config  
-	sed -i 's/YYYYY/${ligand_name}.mol2/' $config
-	sed -i 's/ZZZZZ/${receptor_name}_${ligand_name}/' $config
+	SPORES_64bit --mode protstates $ligand ligandprotonated.mol2
+	sed -i 's/XXXXX/$receptor/' $config
+	sed -i 's/YYYYY/ligandprotonated.mol2/' $config
+	sed -i 's/ZZZZZ/${receptor}_${ligand}VSdir/' $config
 	PLANTS1.2_64bit --mode screen $config
 	"""
 
 }
+
