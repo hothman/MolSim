@@ -12,19 +12,20 @@ process prepare_conformer {
 	input:
 		file receptor from myreceptor
 	output:
-		file("*.mol2") into receptor_mol 
+		file("${name}.mol2") into receptor_mol 
 	script: 
 		name = receptor.baseName.replaceFirst(".pdb","")
 
 	"""
-	SPORES_64bit --mode complete $receptor ${name}.mol2 
-	rm *_bad.mol2
+	"${params.ExnerSuite}"/SPORES_64bit --mode complete $receptor ${name}.mol2 
+	#rm *_bad.mol2
 	"""
 }
 
 process docking {
 	publishDir './CLC3VS' , mode: 'move', overwrite: true
-	maxForks 10
+	maxForks 49 
+	errorStrategy 'ignore' 
 	input: 
 		each file(ligand) from ligands
 		each file(receptor) from receptor_mol
@@ -33,12 +34,11 @@ process docking {
 		file "*mol2VSdir*" into VSfolder 
 
 	"""
-	SPORES_64bit --mode protstates $ligand ligandprotonated.mol2
+	"${params.ExnerSuite}"/SPORES_64bit --mode protstates $ligand ligandprotonated.mol2
 	sed -i 's/XXXXX/$receptor/' $config
 	sed -i 's/YYYYY/ligandprotonated.mol2/' $config
 	sed -i 's/ZZZZZ/${receptor}_${ligand}VSdir/' $config
-	PLANTS1.2_64bit --mode screen $config
+	"${params.ExnerSuite}"/PLANTS1.2_64bit --mode screen $config
 	"""
 
 }
-
