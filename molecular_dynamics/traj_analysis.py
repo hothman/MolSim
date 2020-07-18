@@ -77,9 +77,10 @@ def PcaTraj(traj_object, n_components=2):
     ca_selection = traj_object.top.select('name CA')   # indexes for the CA atoms
     traj_superposed = traj_object.superpose(traj_object, frame=0, atom_indices=ca_selection, ref_atom_indices=ca_selection, parallel=True)
     number_of_coordinates = len(ca_selection)*3
+    print("Dimension:       {0},{1}".format(number_of_coordinates, len(traj_superposed) ))
     # reduce the high order array
     coord_array = []
-    for frame in t: 
+    for frame in traj_superposed: 
         ca_coordinates = frame.xyz[:, ca_selection]
         frame_array = list(np.concatenate(ca_coordinates, axis=None)) 
         coord_array.append(frame_array)
@@ -88,6 +89,7 @@ def PcaTraj(traj_object, n_components=2):
     pca_traj = PCA(n_components= n_components)
     principalComponents = pca_traj.fit_transform(coord_array)
     return pd.DataFrame(principalComponents)    
+    
 
     
 
