@@ -3,6 +3,7 @@ import mdtraj as md
 import numpy as np
 import glob
 import matplotlib.pylab as plt 
+from sklearn.decomposition import PCA
 
 __author__="Houcemeddine Othman"
 __email__="houcemoo@gmail.com"
@@ -65,6 +66,28 @@ def CombineTrajs(path_to_traj_folder, topology, skipframes=1000):
         t = md.load(traj, top=topology)
         concat_traj=md.join([concat_traj, t[skipframes:]]  )
     return concat_traj
+
+def PcaTraj(traj_object, n_components=2):
+    """
+    calculates the principle components of trajectory 
+    based on CA atoms coordinates. 
+        traj_object: MDTraj trajectory object
+        n_components: number of PCs to calculate
+    """
+    ca_selection = traj_object.top.select('name CA')   # indexes for the CA atoms
+    traj_superposed = traj_object.superpose(traj_object, frame=0, atom_indices=ca_selection, ref_atom_indices=ca_selection, parallel=True)
+    number_of_coordinates = len(ca_selection)*3
+    # reduce the high order array
+    coord_array = []
+    for frame in t: 
+        ca_coordinates = frame.xyz[:, ca_selection]
+        frame_array = list(np.concatenate(ca_coordinates, axis=None)) 
+        coord_array.append(frame_array)
+    coord_array = np.array(coord_array)  
+    # PCA calculation
+    pca_traj = PCA(n_components= n_components)
+    principalComponents = pca_traj.fit_transform(coord_array)
+    return pd.DataFrame(principalComponents)    
 
     
 
