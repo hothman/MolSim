@@ -4,20 +4,21 @@ import numpy as np
 import glob
 import matplotlib.pylab as plt 
 from sklearn.decomposition import PCA
+import matplotlib.pyplot as plt
+import pytraj as pt
 
 __author__="Houcemeddine Othman"
 __email__="houcemoo@gmail.com"
 
-def RMSD(trajectory, topology):
+def RMSD(trajectory, adjust_time = 0.01):
     """
     Calculate RMSD
     """
-    t = md.load(trajectory, top=topology)
-    t.center_coordinates()
-    backbone = t.top.select('backbone')
-    rmsd = md.rmsd(t, t, 0, atom_indices=backbone)
+    trajectory.center_coordinates()
+    backbone = trajectory.top.select('backbone')
+    rmsd = md.rmsd(trajectory, trajectory, 0, atom_indices=backbone)
     time = np.arange(len(rmsd))
-    return pd.DataFrame({"Time":time , "RMSD":rmsd })
+    return pd.DataFrame({"Time":time*adjust_time+ adjust_time, "RMSD":rmsd })
 
 def RmsdAvgMinMax(path_to_traj_folder, topology):
     """
@@ -49,11 +50,12 @@ def Rmsf(trajectory, topology, frame=0, offset = 0):
     offset: use this option to adjust the resid according to the 
         reference sequence
     """
-    trajectory.center_coordinates()
-    top = trajectory.topology
-    ca_selection = trajectory.top.select('name CA')
+    t = trajectory[frame:]
+    t.center_coordinates()
+    top = t.topology
+    ca_selection = t.top.select('name CA')
     resid = range(1+offset, len(ca_selection)+1+offset) 
-    return pd.DataFrame( {"resid":resid, "rmsf" :md.rmsf(trajectory, trajectory, frame=frame, atom_indices=ca_selection)} )
+    return pd.DataFrame( {"resid":resid, "rmsf" :md.rmsf(t, t, atom_indices=ca_selection)} )
 
 def plotRmsf(Dataframe_rmsf):
     plt.plot(Dataframe_rmsf.resid, Dataframe_rmsf.rmsf)
@@ -66,6 +68,7 @@ def CombineTrajs(path_to_traj_folder, topology, skipframes=1000):
         t = md.load(traj, top=topology)
         concat_traj=md.join([concat_traj, t[skipframes:]]  )
     return concat_traj
+
 
 def PcaTraj(traj_object, n_components=2):
     """
@@ -88,8 +91,32 @@ def PcaTraj(traj_object, n_components=2):
     # PCA calculation
     pca_traj = PCA(n_components= n_components)
     principalComponents = pca_traj.fit_transform(coord_array)
-    return pd.DataFrame(principalComponents)    
+    scree = pca_traj.explained_variance_ratio_
+    return pd.DataFrame(principalComponents), scree    
     
 
+def parameterPlt(pc_list, col_number=3, size_rows=10):
+    """
+    Calculates dimensions to plot PCs as a sqaure plot 
+    """
+    cell_number = len(pc_list)-1
+    row_number = cell_number//col_number + cell_number%col_number
+    size_cols = (size_rows * col_number)/row_number
+    return ((size_cols,size_rows ) , (col_number,row_number  ))
     
 
+def plotPcs(list_pcs, row_number, col_number, index_of_wt = 0, pc1 = 1, pc2=2 ): 
+    pc_list=list_pcs.copy()
+    projection_wt = pc_list[index_of_wt][0]
+    del pc_list[index_of_wt]
+    for index, pcs  in enumerate(pc_list): 
+        plt.subplot(row_number, col_number, index+1)
+        projection = pcs[0]
+        #plot PC1 vs PC2
+        plt.scatter(projection_wt[pc1-1], projection_wt[pc2-1], color= color_game[0])
+        plt.scatter(projection[pc1-1], projection[pc2-1], alpha=0.5, color= color_game[1] )
+        plt.tight_layout()
+        xlabel="PC"+str(pc1)
+        ylabel = "PC"+str(pc2)
+        plt.xlabel(xlabel)
+        plt.ylabel(ylabel)
