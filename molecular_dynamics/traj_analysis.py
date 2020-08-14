@@ -6,17 +6,21 @@ import matplotlib.pylab as plt
 from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
 import pytraj as pt
+from matplotlib.ticker import (MultipleLocator, FormatStrFormatter,
+                               AutoMinorLocator)
+from scipy.spatial import distance
+
 
 __author__="Houcemeddine Othman"
 __email__="houcemoo@gmail.com"
 
-def RMSD(trajectory, adjust_time = 0.01):
+def RMSD(trajectory, reference, adjust_time = 0.01):
     """
     Calculate RMSD
     """
     trajectory.center_coordinates()
     backbone = trajectory.top.select('backbone')
-    rmsd = md.rmsd(trajectory, trajectory, 0, atom_indices=backbone)
+    rmsd = md.rmsd(trajectory, reference, 0, atom_indices=backbone)
     time = np.arange(len(rmsd))
     return pd.DataFrame({"Time":time*adjust_time+ adjust_time, "RMSD":rmsd })
 
@@ -44,7 +48,7 @@ def PlotRmsd(rmsdDf):
     plt.plot(rmsdDf.time, rmsdDf.avg_rmsd)
     plt.fill_between(rmsdDf.time, rmsdDf.max_rmsd, rmsdDf.min_rmsd, alpha= 0.5)
     
-def Rmsf(trajectory, topology, frame=0, offset = 0):
+def Rmsf(trajectory, topology, reference,  offset = 0, frame=0 ):
     """
     skip: how many frames to skip 
     offset: use this option to adjust the resid according to the 
@@ -55,7 +59,7 @@ def Rmsf(trajectory, topology, frame=0, offset = 0):
     top = t.topology
     ca_selection = t.top.select('name CA')
     resid = range(1+offset, len(ca_selection)+1+offset) 
-    return pd.DataFrame( {"resid":resid, "rmsf" :md.rmsf(t, t, atom_indices=ca_selection)} )
+    return pd.DataFrame( {"resid":resid, "rmsf" :md.rmsf(t, reference, atom_indices=ca_selection)} )
 
 def plotRmsf(Dataframe_rmsf):
     plt.plot(Dataframe_rmsf.resid, Dataframe_rmsf.rmsf)
@@ -95,11 +99,14 @@ def PcaTraj(traj_object, n_components=2):
     return pd.DataFrame(principalComponents), scree    
     
 
-def parameterPlt(pc_list, col_number=3, size_rows=10):
+def parameterPlt(pc_list, col_number=3, size_rows=10, mode="superpose"):
     """
     Calculates dimensions to plot PCs as a sqaure plot 
     """
-    cell_number = len(pc_list)-1
+    if mode == "superpose" : 
+        cell_number = len(pc_list)-1
+    elif  mode == "separate":
+        cell_number = len(pc_list)    
     row_number = cell_number//col_number + cell_number%col_number
     size_cols = (size_rows * col_number)/row_number
     return ((size_cols,size_rows ) , (col_number,row_number  ))
@@ -113,10 +120,174 @@ def plotPcs(list_pcs, row_number, col_number, index_of_wt = 0, pc1 = 1, pc2=2 ):
         plt.subplot(row_number, col_number, index+1)
         projection = pcs[0]
         #plot PC1 vs PC2
-        plt.scatter(projection_wt[pc1-1], projection_wt[pc2-1], color= color_game[0])
-        plt.scatter(projection[pc1-1], projection[pc2-1], alpha=0.5, color= color_game[1] )
+        plt.scatter(projection_wt[pc1-1], projection_wt[pc2-1],alpha=0.5, color= color_palette[0])
+        plt.scatter(projection[pc1-1], projection[pc2-1], alpha=0.5, color= color_palette[1] )
         plt.tight_layout()
         xlabel="PC"+str(pc1)
         ylabel = "PC"+str(pc2)
+        plt.xlabel(xlabel)
+        plt.ylabel(ylabel)
+        
+def screePlot(list_pcs, labels, output):
+    fig, ax = plt.subplots()
+    for trajectory, label in zip(list_pcs, labels): 
+        eigenvalues = trajectory[1][0]/np.sum( trajectory[1][0])
+        eigenvalue_indexes = np.arange(1, len(eigenvalues)+1)
+        ax.plot(eigenvalue_indexes, eigenvalues, "--o", label=label)
+        ax.yaxis.set_minor_locator(AutoMinorLocator())
+        ax.tick_params(axis='y', which='minor', bottom=False)
+        #ax.grid(color='gray', linestyle='--', linewidth=0.5,alpha=0.8, which="both")
+        plt.ylabel("% of explained variances")
+        plt.xlabel("Component index")
+        plt.legend()
+        plt.savefig(output)
+
+def PcaPytraj(traj_list, references, sector = [0,-1] ): 
+    PC_list = []
+    for traj, reference in zip(traj_list, references): 
+        PC_list.append( pt.pca(traj[sector[0]:sector[1]], ref=reference, mask='@CA,N,C', n_vecs=10)) 
+    return PC_list
+        
+def Rmsip(eigs1, eigs2):
+    """
+    Calculates RMSIP of dimension_D
+    """
+    sum = 0
+    dimension_D=len(eigs1)
+    for eigenvector1 in eigs1 : 
+        second_sum =  np.sum( [ np.dot(eigenvector1, eigenvector2 )**2 for eigenvector2 in eigs2 ] )
+        sum = sum+second_sum
+    return  np.round(np.sqrt(sum/dimension_D), 3)
+
+
+def FelRange(pcs_for_var, pc_index):
+    pcs = pcs_for_var[0] 
+    pc = pcs[pc_index -1 ]
+    return np.min(pc), np.max(pc)
+
+def MinMaxPCsXY(list_pc, pcx_idx , pcy_idx): 
+    """
+    Returns max and mi values for PC values of X and 
+        Y axis
+    """
+    min_pcx = 0
+    min_pcy = 0
+    max_pcx= 0 
+    max_pcy = 0
+    for trajectory_pc in list_pc: 
+        pcs = trajectory_pc[0]
+        pcx = pcs[pcx_idx-1]
+        pcy = pcs[pcy_idx-1]
+        if pcx.min() < min_pcx: 
+            min_pcx = pcx.min()
+        if pcy.min() < min_pcy:
+            min_pcy = pcy.min()
+        if pcx.max() > max_pcx:
+            max_pcx = pcx.max()
+        if pcy.max() > max_pcy:
+            max_pcy = pcy.max()
+    adjustment_factor = 10
+    return np.array([[min_pcx-adjustment_factor, max_pcx+adjustment_factor], [min_pcy-adjustment_factor,  max_pcy+adjustment_factor]])
+
+def ReturnConfAtMin(data_pc, pc_x, pc_y, minimum_at_bin ): 
+    """
+    returns the coordinates at the subspace corresponding
+    to the closest conformation to the global minimum, calculated from binning 
+    the free energy landscape
+    """
+    pcs = data_pc[0]
+    pc1 = pcs[pc_x-1]
+    pc2 = pcs[pc_y-1]
+    minimum = np.array(minimum_at_bin)
+    pc1_pc2 = np.column_stack((pc1, pc2))
+    #distance.euclidean(pc1_pc2, minimum)
+    distances = [ distance.euclidean(vec, minimum) for vec in pc1_pc2]
+    min_distance = np.min(distances)
+    index = int(np.where(distances == min_distance)[0])
+    return pc1_pc2[index] # coordinates in the subspaces pc_x and pc_y
+
+def FindMin(data_pc, pc_x, pc_y, bins, data_range ): 
+    """
+    returns the projection of the coordinates of the global minimum 
+    from PCA data. 'data_pc', is the PCA from pytraj of a trajectory
+    returns: 
+        0: projection of the global minimum -> x axis 
+        1: projection of the global minimum -> y axis
+        2: range of pc_x values (min, max)
+        3: range of pc_y values (min, max)
+        4: Energy calculated from density data (type array ), with pc_x(raws) and pc_y(columns) as reaction coordinates
+    """
+    pcs = data_pc[0]
+    pc1=pcs[pc_x -1 ]
+    pc2=pcs[pc_y -1 ]   
+    density=np.histogram2d(pc1, pc2, bins=bins, range=data_range) 
+    matrix = density[0]
+    flat_array = density[0].flatten()
+    unique_values = np.unique(  np.sort(flat_array) )    # will convert all 0 values to the lowest density value 
+    min_density = unique_values[1]
+    matrix[ matrix == 0 ] = min_density
+    energy = -0.001985875*298.15*np.log( matrix/matrix.sum() )
+    min_energy =  energy.min()
+    indexes_min = np.where(energy == min_energy)
+    pc_projection_1 = density[1]   # get the pc values array from the second element in density 
+    pc_projection_2 = density[2] 
+    pc1_range = FelRange(data_pc, pc_x )
+    pc2_range = FelRange(data_pc, pc_y )
+    return  float(pc_projection_1[indexes_min[0]]), float(pc_projection_2[indexes_min[1]] ), pc1_range, pc2_range,  np.rot90(energy)
+    
+def getEnergyBoundaries(list_pc, pc_x, pc_y):
+    """ Reports the lowest and highest energies in the pc table """
+    vmin = None
+    vmax=None
+    for data_pc in list_pc:
+        pcs = data_pc[0]
+        pc1=pcs[pc_x -1 ]
+        pc2=pcs[pc_y -1 ]
+        density=np.histogram2d(pc1, pc2, bins=bins)
+        matrix = density[0]
+        flat_array = density[0].flatten()
+        unique_values = np.unique(  np.sort(flat_array) )    # will convert all 0 values to the lowest density value 
+        min_density = unique_values[1]
+        matrix[ matrix == 0 ] = min_density
+        energy = -0.001985875*298.15*np.log( matrix/matrix.sum() )
+        if vmin == None: 
+            vmin = energy.min()
+        elif vmax == None : 
+            vmax = energy.max()
+        elif energy.min() < vmin : 
+            vmin = energy.min()
+        elif energy.max() > vmax:
+            vmax = energy.max()
+    return vmin, vmax
+            
+
+def Fel(list_pc, col_number, row_number, bins, pc_x, pc_y): 
+    """
+    Plotting the FEL 
+    """
+    min_max_pcs= MinMaxPCsXY(list_pc, pc_x, pc_y )
+    vmin, vmax = getEnergyBoundaries(list_pc,  pc_x, pc_y )
+    for index,data_pc in enumerate(list_pc): 
+        plt.subplot(row_number, col_number, index+1)
+        pcs = data_pc[0]     
+        pc1_range = FelRange(data_pc, pc_x )
+        pc2_range = FelRange(data_pc, pc_y )
+        fel_data = FindMin(data_pc, pc_x, pc_y, bins, min_max_pcs )
+        global_min_x = fel_data[0]
+        global_min_y = fel_data[1] 
+        minimum_at_data =  ReturnConfAtMin( data_pc , pc_x, pc_y, [global_min_x , global_min_y])
+        max_energy = fel_data[4].max()
+        fel_data[4][ fel_data[4] == max_energy ] = vmax   # make all the highst energies equals to vmax
+        plt.imshow(fel_data[4], interpolation='bilinear', cmap=cm.jet, 
+                   extent=[min_max_pcs[0][0] , min_max_pcs[0][1], min_max_pcs[1][0], min_max_pcs[1][1]] ,
+                   aspect="auto", vmin=vmin, vmax=vmax)
+        #plt.colorbar()
+        plt.tight_layout()
+        #plt.scatter(pcs[0], pcs[1], color = "white", alpha =0.2, s=1)
+        plt.scatter(minimum_at_data[0], minimum_at_data[1], s=100, color="red", marker="x")
+        plt.scatter(pcs[0][0], pcs[1][1], color = "yellow", alpha =1, s=100, marker="x")
+        #plt.contour( np.flip(fel_data[4], axis=0), colors='white', extent=[min_max_pcs[0][0] , min_max_pcs[0][1], min_max_pcs[1][0], min_max_pcs[1][1]] , alpha=0.5 )            
+        xlabel="PC"+str(pc_x)
+        ylabel = "PC"+str(pc_y)
         plt.xlabel(xlabel)
         plt.ylabel(ylabel)
