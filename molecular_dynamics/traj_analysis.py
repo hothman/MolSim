@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import pytraj as pt
 from matplotlib.ticker import (MultipleLocator, FormatStrFormatter,
                                AutoMinorLocator)
+import matplotlib.cm as cm
 from scipy.spatial import distance
 
 
@@ -19,8 +20,10 @@ def RMSD(trajectory, reference, adjust_time = 0.01):
     Calculate RMSD
     """
     trajectory.center_coordinates()
-    backbone = trajectory.top.select('backbone')
-    rmsd = md.rmsd(trajectory, reference, 0, atom_indices=backbone)
+    backbone = trajectory.top.select('not (resid 234 to 243 or resid 254 to 262 )  and backbone ') 
+    backbone_ref = reference.top.select('not (resid 234 to 243 or resid 254 to 262 )  and backbone ') 
+    #not (resid 234 to 243 or resid 254 to 262 )  and name CA
+    rmsd = md.rmsd(trajectory, reference, 0, atom_indices=backbone, ref_atom_indices=backbone_ref )
     time = np.arange(len(rmsd))
     return pd.DataFrame({"Time":time*adjust_time+ adjust_time, "RMSD":rmsd })
 
@@ -111,22 +114,6 @@ def parameterPlt(pc_list, col_number=3, size_rows=10, mode="superpose"):
     size_cols = (size_rows * col_number)/row_number
     return ((size_cols,size_rows ) , (col_number,row_number  ))
     
-
-def plotPcs(list_pcs, row_number, col_number, index_of_wt = 0, pc1 = 1, pc2=2 ): 
-    pc_list=list_pcs.copy()
-    projection_wt = pc_list[index_of_wt][0]
-    del pc_list[index_of_wt]
-    for index, pcs  in enumerate(pc_list): 
-        plt.subplot(row_number, col_number, index+1)
-        projection = pcs[0]
-        #plot PC1 vs PC2
-        plt.scatter(projection_wt[pc1-1], projection_wt[pc2-1],alpha=0.5, color= color_palette[0])
-        plt.scatter(projection[pc1-1], projection[pc2-1], alpha=0.5, color= color_palette[1] )
-        plt.tight_layout()
-        xlabel="PC"+str(pc1)
-        ylabel = "PC"+str(pc2)
-        plt.xlabel(xlabel)
-        plt.ylabel(ylabel)
         
 def screePlot(list_pcs, labels, output):
     fig, ax = plt.subplots()
@@ -147,7 +134,30 @@ def PcaPytraj(traj_list, references, sector = [0,-1] ):
     for traj, reference in zip(traj_list, references): 
         PC_list.append( pt.pca(traj[sector[0]:sector[1]], ref=reference, mask='@CA,N,C', n_vecs=10)) 
     return PC_list
-        
+   
+def plotPcs(list_pcs, row_number, col_number, index_of_wt = 0, pc1 = 1, pc2=2 ): 
+    pc_list=list_pcs.copy()
+    color_palette = ["#4bb1b4", "#B44E4B"]
+    projection_wt = pc_list[index_of_wt][0]
+    del pc_list[index_of_wt]
+    for index, pcs  in enumerate(pc_list): 
+        plt.subplot(row_number, col_number, index+1)
+        projection = pcs[0]
+        #plot PC1 vs PC2
+        plt.scatter(projection_wt[pc1-1], projection_wt[pc2-1],alpha=0.5, color= color_palette[0])
+        ymin, ymax = plt.gca().get_ylim()
+        xmin, xmax = plt.gca().get_xlim()
+        plt.scatter(projection[pc1-1], projection[pc2-1], alpha=0.5, color= color_palette[-1] )
+        #plt.ylim([-50, 40])
+        #plt.vlines(0,-70, 60, linestyles="dashed", color="k", alpha=0.5 )
+        #plt.hlines(0,-70, 70, linestyles="dashed", color="k", alpha=0.5 )
+        #plt.xlim([-40, 49])
+        plt.tight_layout()
+        xlabel="PC"+str(pc1)
+        ylabel = "PC"+str(pc2)
+        plt.xlabel(xlabel)
+        plt.ylabel(ylabel)
+    
 def Rmsip(eigs1, eigs2):
     """
     Calculates RMSIP of dimension_D
@@ -204,6 +214,7 @@ def ReturnConfAtMin(data_pc, pc_x, pc_y, minimum_at_bin ):
     distances = [ distance.euclidean(vec, minimum) for vec in pc1_pc2]
     min_distance = np.min(distances)
     index = int(np.where(distances == min_distance)[0])
+    print("Conformation number {} is the closes to the global minimum".format(index+1))
     return pc1_pc2[index] # coordinates in the subspaces pc_x and pc_y
 
 def FindMin(data_pc, pc_x, pc_y, bins, data_range ): 
@@ -235,7 +246,7 @@ def FindMin(data_pc, pc_x, pc_y, bins, data_range ):
     pc2_range = FelRange(data_pc, pc_y )
     return  float(pc_projection_1[indexes_min[0]]), float(pc_projection_2[indexes_min[1]] ), pc1_range, pc2_range,  np.rot90(energy)
     
-def getEnergyBoundaries(list_pc, pc_x, pc_y):
+def getEnergyBoundaries(list_pc, pc_x, pc_y, bins):
     """ Reports the lowest and highest energies in the pc table """
     vmin = None
     vmax=None
@@ -266,7 +277,7 @@ def Fel(list_pc, col_number, row_number, bins, pc_x, pc_y):
     Plotting the FEL 
     """
     min_max_pcs= MinMaxPCsXY(list_pc, pc_x, pc_y )
-    vmin, vmax = getEnergyBoundaries(list_pc,  pc_x, pc_y )
+    vmin, vmax = getEnergyBoundaries(list_pc,  pc_x, pc_y, bins )
     for index,data_pc in enumerate(list_pc): 
         plt.subplot(row_number, col_number, index+1)
         pcs = data_pc[0]     
@@ -283,7 +294,7 @@ def Fel(list_pc, col_number, row_number, bins, pc_x, pc_y):
                    aspect="auto", vmin=vmin, vmax=vmax)
         #plt.colorbar()
         plt.tight_layout()
-        #plt.scatter(pcs[0], pcs[1], color = "white", alpha =0.2, s=1)
+        plt.scatter(pcs[0], pcs[1], color = "black", alpha =0.2, s=1)
         plt.scatter(minimum_at_data[0], minimum_at_data[1], s=100, color="red", marker="x")
         plt.scatter(pcs[0][0], pcs[1][1], color = "yellow", alpha =1, s=100, marker="x")
         #plt.contour( np.flip(fel_data[4], axis=0), colors='white', extent=[min_max_pcs[0][0] , min_max_pcs[0][1], min_max_pcs[1][0], min_max_pcs[1][1]] , alpha=0.5 )            
@@ -291,3 +302,71 @@ def Fel(list_pc, col_number, row_number, bins, pc_x, pc_y):
         ylabel = "PC"+str(pc_y)
         plt.xlabel(xlabel)
         plt.ylabel(ylabel)
+
+class RmsfCalculation:
+    def __init__(self, trajs, reference , offset, labels=[] , start=0, size_rows = 10, index_ref = 0): 
+        self.traj_table = trajs
+        self.reference = reference
+        self.start= start
+        self.offset = offset
+        self.labels = labels
+    
+    def CalculateRmsf(self): 
+        """
+        Claculates the RMSF for all trajectrories in trajs 
+        relative to a unique reference sructure. 
+        Calculations are made for the CA atoms
+        """
+        self.rmsfs = []
+        indexes_ref = self.reference.top.select("name CA")
+        for sliced in self.traj_table :
+            traj =sliced[100:200]
+            indexes_traj = traj.top.select("name CA")
+            if len(indexes_ref) != len(indexes_traj):
+                raise Exception("Atoms in traj and reference do not match") 
+            rmsf_traj = md.rmsf(traj, self.reference, atom_indices= indexes_traj, ref_atom_indices=indexes_ref)
+            self.rmsfs.append(rmsf_traj)
+    
+    def dumpToCsv(self, output):
+        """
+        Dump calculated RMSFs go a csv file
+        """
+        resid = np.arange(len(self.rmsfs[0]))+1+self.offset
+        rmsf_dic = { "resid":resid }
+        if len(self.labels) != len(self.rmsfs): 
+            raise Exception
+        if self.labels != []: 
+            for label, rmsf in zip(self.labels, self.rmsfs) : 
+                rmsf_dic[label] = rmsf
+        else: 
+            raise Exception("You must provide the labels table")
+        df = pd.DataFrame(rmsf_dic)
+        df.to_csv(output, index=False)
+
+class RmsfPlots: 
+    def __init__(self, rmsf_csv_file, size_rows ): 
+        self.rmsf_dataframe = pd.read_csv(rmsf_csv_file)
+        self.size_rows= size_rows
+                  
+    def PlotRmsfVars(self, range_of_data, output ): 
+        columns = self.rmsf_dataframe.columns[2:]
+        working_df = self.rmsf_dataframe.loc[:, columns ]
+        self.graph_dim = parameterPlt(columns, col_number = 1, size_rows=6, mode="separate")
+        row_number = self.graph_dim[1][1]
+        col_number = self.graph_dim[1][0]
+        reference_rmsf = self.rmsf_dataframe["Ref"]        
+        for index, col in enumerate(working_df) : 
+            plt.subplot(row_number, col_number, index+1 )
+            plt.plot(self.rmsf_dataframe.resid, reference_rmsf, color="#4bb1b4", marker="o", markersize=3, linestyle='dashed')
+            plt.plot(self.rmsf_dataframe.resid, working_df[col], color="#B44E4B", marker="s" , markersize=3)
+            plt.bar(self.rmsf_dataframe.resid, np.sqrt((working_df[col] - reference_rmsf)**2), color="gray"  )
+            plt.xlim(range_of_data[0], range_of_data[1])
+            plt.ylim(0,0.3)
+            plt.tight_layout()
+            plt.minorticks_on()
+            #plt.vlines([160,170, 180,  190, 200, 210], 0, 0.5)
+            plt.xlabel("#Residue")
+            plt.ylabel("RMSF (nm)")
+            plt.savefig(output)
+            
+
