@@ -10,6 +10,7 @@ from matplotlib.ticker import (MultipleLocator, FormatStrFormatter,
                                AutoMinorLocator)
 import matplotlib.cm as cm
 from scipy.spatial import distance
+import matplotlib as mpl
 
 
 __author__="Houcemeddine Othman"
@@ -369,4 +370,106 @@ class RmsfPlots:
             plt.ylabel("RMSF (nm)")
             plt.savefig(output)
             
+def plotlowerTriangleDccm(matrix, output, cmap, norm): 
+    """
+    Plots only the lower triangple of the dccm (or any other numpy square matrix)
+    """
+    fig, ax = plt.subplots( nrows=1, ncols=1 )
+    upper_matrix = np.tril(matrix)
+    plt.imshow(upper_matrix, cmap=cmap, norm=norm, vmin=-1, vmax=1)
+    #plt.colorbar()
+    ax.spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(False)
+    ax.yaxis.set_ticks_position('left')
+    ax.xaxis.set_ticks_position('bottom')
+    ax.contour(upper_matrix , linewidths=0.2, colors="k", norm=norm)
+    ax.set_xlabel("#Residue")
+    ax.set_ylabel("#Residue")
+    ax.xaxis.set_minor_locator(AutoMinorLocator())
+    ax.yaxis.set_minor_locator(AutoMinorLocator())
+    ax.tick_params(axis='both', which='minor', width=1, length=3)
+    fig.savefig(output, ddpi=400)
+    plt.close(fig)
 
+def cmapDccm(output):
+    """
+    Generates a colorbar and corresponding norm with 
+    specific colors and range
+    """
+    cmap = mpl.colors.ListedColormap(['#2d6a6c', '#4bb1b4', "#93d0d2", '#dbeff0', 'white',
+                                  '#f8efef', "#ddafad", "#c26e6c", "#B44E4B"])
+    cmap.set_over('#B44E4B')
+    cmap.set_under('#2d6a6c')
+    bounds = [-1.0, -0.8, -0.6, -0.4, -0.2, 0.2, 0.4, 0.6, 0.8, 1]
+    norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
+    fig, ax = plt.subplots(figsize=(5, 0.5))
+    fig.subplots_adjust(bottom=0.5)
+    fig.colorbar(
+        mpl.cm.ScalarMappable(cmap=cmap, norm=norm),
+        cax=ax,
+        ticks=bounds,
+        spacing='uniform',
+        orientation='horizontal',
+        label='',
+    )
+    fig.savefig(output)
+    plt.close(fig)
+    return cmap, norm
+
+def plotDencityDccm(dccm_var, dccm_wt, output):
+    """
+    Plot the density of cross-correlation values (only for one triangle)
+    """
+    fig, ax = plt.subplots( nrows=1, ncols=1 )
+    dccm_n, _ = dccm_var.shape
+    iu=np.tril_indices(469)
+    lower_triangle_elements_var =  dccm_var[iu]
+    lower_triangle_elements_wt =  dccm_wt[iu]
+    y_var, x_var =np.histogram(lower_triangle_elements_var, bins=50)
+    y_wt, x_wt =np.histogram(lower_triangle_elements_wt, bins=50)
+    y_var = np.append([0], y_var)
+    y_wt = np.append([0], y_wt)
+    ax = plt.subplot(111)
+    ax.plot( x_var, y_var/y_var.sum(), '--', color="#B44E4B", linewidth=2)
+    ax.plot( x_wt, y_wt/y_wt.sum(), color="#4bb1b4", linewidth=2)
+    ax.set_xlabel('Cross correlation')
+    ax.set_ylabel('Density')
+    ax.legend(['Variant', 'WT'])
+    fig.savefig(output, ddpi=400)
+    plt.close(fig)
+
+def scalingData(value, max_radius): 
+    """
+    returns a scaled value to draw cylinder 
+    radius in VMD for cross correlation analysis
+    """
+    value = np.abs(value)
+    radius = max_radius * value
+    return radius
+
+def generateTclDccm(dccm_matrix, output, cutoff=0.5): 
+    """
+    Gnerates a tcl scrpt for vmd 
+    correlation network
+    """
+    triangle = np.triu(dccm_matrix)
+    indexes = np.where((triangle >cutoff) | (triangle <-cutoff))
+    with open(output, "w") as tclfile:
+        for x, y in zip(indexes[0], indexes[1]) : 
+            if x != y:
+                if triangle[x][y] > 0: 
+                    color='blue'
+                else:
+                    color='red'
+                radius = scalingData(triangle[x][y], 0.2)
+                commands =""" 
+draw color  {3}
+set atom1 [atomselect top "resid {0} and name CA"]
+set atom2 [atomselect top "resid {1} and name CA"]
+set coord1 [ $atom1 get {2} ]
+set coord2 [ $atom2 get {2} ]
+lassign $coord1 vector1
+lassign $coord2 vector2
+draw cylinder $vector1 $vector2 radius {4}
+                        """.format(x, y, "{x y z}", color, radius)
+                tclfile.write(commands)
