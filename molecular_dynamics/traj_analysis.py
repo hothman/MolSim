@@ -136,19 +136,26 @@ def PcaPytraj(traj_list, references, sector = [0,-1] ):
         PC_list.append( pt.pca(traj[sector[0]:sector[1]], ref=reference, mask='@CA,N,C', n_vecs=10)) 
     return PC_list
    
-def plotPcs(list_pcs, row_number, col_number, index_of_wt = 0, pc1 = 1, pc2=2 ): 
+def plotPcs(list_pcs, row_number, col_number, index_of_wt = 0, pc1 = 1, pc2=2, point_size=5 ): 
     pc_list=list_pcs.copy()
     color_palette = ["#4bb1b4", "#B44E4B"]
-    projection_wt = pc_list[index_of_wt][0]
+    # generate color map to ditinguish the time evolution in PCA plots
+    colormap_var = [(180, 78, 75), (248, 239, 239)]  # dark red to light red 
+    colormap_wt = [(45, 106, 108), (219, 239, 240)]  # dark cyan to light cyan
+    cmap_wt = create_colormap(colormap_wt, bit=True)
+    cmap_var  = create_colormap(colormap_var, bit=True)
+    projection_wt = pc_list[index_of_wt]
     del pc_list[index_of_wt]
     for index, pcs  in enumerate(pc_list): 
         plt.subplot(row_number, col_number, index+1)
-        projection = pcs[0]
+        projection = pcs
         #plot PC1 vs PC2
-        plt.scatter(projection_wt[pc1-1], projection_wt[pc2-1],alpha=0.5, color= color_palette[0])
+        steps = np.arange(0,len(projection_wt[pc1-1]))  # generate array of time steps 0,1,2, .....
+        plt.scatter(projection_wt[pc1-1], projection_wt[pc2-1], c=steps, cmap=cmap_wt, s=point_size)
         ymin, ymax = plt.gca().get_ylim()
         xmin, xmax = plt.gca().get_xlim()
-        plt.scatter(projection[pc1-1], projection[pc2-1], alpha=0.5, color= color_palette[-1] )
+        steps = np.arange(0,len(projection[pc1-1]))
+        plt.scatter(projection[pc1-1], projection[pc2-1], c=steps, cmap=cmap_var, s=point_size ) 
         #plt.ylim([-50, 40])
         #plt.vlines(0,-70, 60, linestyles="dashed", color="k", alpha=0.5 )
         #plt.hlines(0,-70, 70, linestyles="dashed", color="k", alpha=0.5 )
@@ -458,9 +465,9 @@ def generateTclDccm(dccm_matrix, output, cutoff=0.5):
         for x, y in zip(indexes[0], indexes[1]) : 
             if x != y:
                 if triangle[x][y] > 0: 
-                    color='blue'
+                    color='cyan2'
                 else:
-                    color='red'
+                    color='red3'
                 radius = scalingData(triangle[x][y], 0.2)
                 commands =""" 
 draw color  {3}
@@ -473,3 +480,58 @@ lassign $coord2 vector2
 draw cylinder $vector1 $vector2 radius {4}
                         """.format(x, y, "{x y z}", color, radius)
                 tclfile.write(commands)
+
+#####################################################
+# create_colormap() has been created by Chris Slocum
+# https://github.com/CSlocumWX/custom_colormap
+#####################################################
+
+def create_colormap(colors, position=None, bit=False, reverse=False, name='custom_colormap'):
+    """
+    returns a linear custom colormap
+
+    Parameters
+    ----------
+    colors : array-like
+        contain RGB values. The RGB values may either be in 8-bit [0 to 255]
+        or arithmetic [0 to 1] (default).
+        Arrange your tuples so that the first color is the lowest value for the
+        colorbar and the last is the highest.
+    position : array like
+        contains values from 0 to 1 to dictate the location of each color.
+    bit : Boolean
+        8-bit [0 to 255] (in which bit must be set to
+        True when called) or arithmetic [0 to 1] (default)
+    reverse : Boolean
+        If you want to flip the scheme
+    name : string
+        name of the scheme if you plan to save it
+
+    Returns
+    -------
+    cmap : matplotlib.colors.LinearSegmentedColormap
+        cmap with equally spaced colors
+    """
+    from matplotlib.colors import LinearSegmentedColormap
+    if not isinstance(colors, np.ndarray):
+        colors = np.array(colors, dtype='f')
+    if reverse:
+        colors = colors[::-1]
+    if position is not None and not isinstance(position, np.ndarray):
+        position = np.array(position)
+    elif position is None:
+        position = np.linspace(0, 1, colors.shape[0])
+    else:
+        if position.size != colors.shape[0]:
+            raise ValueError("position length must be the same as colors")
+        elif not np.isclose(position[0], 0) and not np.isclose(position[-1], 1):
+            raise ValueError("position must start with 0 and end with 1")
+    if bit:
+        colors[:] = [tuple(map(lambda x: x / 255., color)) for color in colors]
+    cdict = {'red':[], 'green':[], 'blue':[]}
+    for pos, color in zip(position, colors):
+        cdict['red'].append((pos, color[0], color[0]))
+        cdict['green'].append((pos, color[1], color[1]))
+        cdict['blue'].append((pos, color[2], color[2]))
+    return LinearSegmentedColormap(name, cdict, 256)
+
