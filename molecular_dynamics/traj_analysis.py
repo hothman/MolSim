@@ -118,10 +118,11 @@ def parameterPlt(pc_list, col_number=3, size_rows=10, mode="superpose"):
         
 def screePlot(list_pcs, labels, output):
     fig, ax = plt.subplots()
-    for trajectory, label in zip(list_pcs, labels): 
-        eigenvalues = trajectory[1][0]/np.sum( trajectory[1][0])
+    markers = ["o", "v", "s", "D", "^", "H", ">"]
+    for trajectory, label, marker in zip(list_pcs, labels, markers): 
+        eigenvalues = trajectory/np.sum( trajectory)
         eigenvalue_indexes = np.arange(1, len(eigenvalues)+1)
-        ax.plot(eigenvalue_indexes, eigenvalues, "--o", label=label)
+        ax.plot(eigenvalue_indexes, eigenvalues, "--", marker=marker, label=label)
         ax.yaxis.set_minor_locator(AutoMinorLocator())
         ax.tick_params(axis='y', which='minor', bottom=False)
         #ax.grid(color='gray', linestyle='--', linewidth=0.5,alpha=0.8, which="both")
@@ -130,18 +131,23 @@ def screePlot(list_pcs, labels, output):
         plt.legend()
         plt.savefig(output)
 
+def cumVar(eigenvalues, to_which_eigenvalue=3): 
+    eigenvalues_sum_subset = np.sum(eigenvalues[:to_which_eigenvalue])
+    eigenvalues_sum = np.sum(eigenvalues)
+    print(np.round( (eigenvalues_sum_subset/eigenvalues_sum)*100 ), "%" )
+
 def PcaPytraj(traj_list, references, sector = [0,-1] ): 
     PC_list = []
     for traj, reference in zip(traj_list, references): 
         PC_list.append( pt.pca(traj[sector[0]:sector[1]], ref=reference, mask='@CA,N,C', n_vecs=10)) 
     return PC_list
    
-def plotPcs(list_pcs, row_number, col_number, index_of_wt = 0, pc1 = 1, pc2=2, point_size=5 ): 
+def plotPcs(list_pcs, row_number, col_number, xmin , xmax, ymin,ymax, index_of_wt = 0, pc1 = 1, pc2=2, point_size=5  ): 
     pc_list=list_pcs.copy()
     color_palette = ["#4bb1b4", "#B44E4B"]
     # generate color map to ditinguish the time evolution in PCA plots
-    colormap_var = [(180, 78, 75), (248, 239, 239)]  # dark red to light red 
-    colormap_wt = [(45, 106, 108), (219, 239, 240)]  # dark cyan to light cyan
+    colormap_var = [(248, 239, 239), (180, 78, 75)]  # dark red to light red 
+    colormap_wt = [(219, 239, 240),(45, 106, 108)]  # dark cyan to light cyan
     cmap_wt = create_colormap(colormap_wt, bit=True)
     cmap_var  = create_colormap(colormap_var, bit=True)
     projection_wt = pc_list[index_of_wt]
@@ -149,17 +155,18 @@ def plotPcs(list_pcs, row_number, col_number, index_of_wt = 0, pc1 = 1, pc2=2, p
     for index, pcs  in enumerate(pc_list): 
         plt.subplot(row_number, col_number, index+1)
         projection = pcs
-        #plot PC1 vs PC2
-        steps = np.arange(0,len(projection_wt[pc1-1]))  # generate array of time steps 0,1,2, .....
-        plt.scatter(projection_wt[pc1-1], projection_wt[pc2-1], c=steps, cmap=cmap_wt, s=point_size)
-        ymin, ymax = plt.gca().get_ylim()
-        xmin, xmax = plt.gca().get_xlim()
+        #plot PC1 vs PC2     
+        plt.axvline(x=0, linestyle='--', color='gray', alpha = 0.8, lw=1)
+        plt.axhline(y=0, linestyle='--', color='gray', alpha = 0.8, lw=1)
         steps = np.arange(0,len(projection[pc1-1]))
-        plt.scatter(projection[pc1-1], projection[pc2-1], c=steps, cmap=cmap_var, s=point_size ) 
+        plt.scatter(projection[pc1-1], projection[pc2-1], c=steps, cmap=cmap_var, s=point_size )
+        steps = np.arange(0,len(projection_wt[pc1-1]))  # generate array of time steps 0,1,2, ..... 
+        plt.scatter(projection_wt[pc1-1], projection_wt[pc2-1], c=steps, cmap=cmap_wt, s=point_size)
         #plt.ylim([-50, 40])
         #plt.vlines(0,-70, 60, linestyles="dashed", color="k", alpha=0.5 )
         #plt.hlines(0,-70, 70, linestyles="dashed", color="k", alpha=0.5 )
-        #plt.xlim([-40, 49])
+        plt.xlim([xmin, xmax])
+        plt.ylim([ymin, ymax])
         plt.tight_layout()
         xlabel="PC"+str(pc1)
         ylabel = "PC"+str(pc2)
@@ -204,7 +211,7 @@ def MinMaxPCsXY(list_pc, pcx_idx , pcy_idx):
             max_pcx = pcx.max()
         if pcy.max() > max_pcy:
             max_pcy = pcy.max()
-    adjustment_factor = 10
+    adjustment_factor = 32
     return np.array([[min_pcx-adjustment_factor, max_pcx+adjustment_factor], [min_pcy-adjustment_factor,  max_pcy+adjustment_factor]])
 
 def ReturnConfAtMin(data_pc, pc_x, pc_y, minimum_at_bin ): 
@@ -236,7 +243,7 @@ def FindMin(data_pc, pc_x, pc_y, bins, data_range ):
         3: range of pc_y values (min, max)
         4: Energy calculated from density data (type array ), with pc_x(raws) and pc_y(columns) as reaction coordinates
     """
-    pcs = data_pc[0]
+    pcs = data_pc
     pc1=pcs[pc_x -1 ]
     pc2=pcs[pc_y -1 ]   
     density=np.histogram2d(pc1, pc2, bins=bins, range=data_range) 
@@ -259,7 +266,7 @@ def getEnergyBoundaries(list_pc, pc_x, pc_y, bins):
     vmin = None
     vmax=None
     for data_pc in list_pc:
-        pcs = data_pc[0]
+        pcs = data_pc
         pc1=pcs[pc_x -1 ]
         pc2=pcs[pc_y -1 ]
         density=np.histogram2d(pc1, pc2, bins=bins)
@@ -286,26 +293,27 @@ def Fel(list_pc, col_number, row_number, bins, pc_x, pc_y):
     """
     min_max_pcs= MinMaxPCsXY(list_pc, pc_x, pc_y )
     vmin, vmax = getEnergyBoundaries(list_pc,  pc_x, pc_y, bins )
+    print(vmin, vmax)
     for index,data_pc in enumerate(list_pc): 
         plt.subplot(row_number, col_number, index+1)
-        pcs = data_pc[0]     
+        pcs = data_pc  
         pc1_range = FelRange(data_pc, pc_x )
         pc2_range = FelRange(data_pc, pc_y )
         fel_data = FindMin(data_pc, pc_x, pc_y, bins, min_max_pcs )
         global_min_x = fel_data[0]
         global_min_y = fel_data[1] 
-        minimum_at_data =  ReturnConfAtMin( data_pc , pc_x, pc_y, [global_min_x , global_min_y])
+        #minimum_at_data =  ReturnConfAtMin( data_pc , pc_x, pc_y, [global_min_x , global_min_y])
         max_energy = fel_data[4].max()
         fel_data[4][ fel_data[4] == max_energy ] = vmax   # make all the highst energies equals to vmax
-        plt.imshow(fel_data[4], interpolation='bilinear', cmap=cm.jet, 
+        plt.imshow(fel_data[4], interpolation='bilinear', cmap=cm.Spectral_r, 
                    extent=[min_max_pcs[0][0] , min_max_pcs[0][1], min_max_pcs[1][0], min_max_pcs[1][1]] ,
                    aspect="auto", vmin=vmin, vmax=vmax)
         #plt.colorbar()
         plt.tight_layout()
-        plt.scatter(pcs[0], pcs[1], color = "black", alpha =0.2, s=1)
-        plt.scatter(minimum_at_data[0], minimum_at_data[1], s=100, color="red", marker="x")
-        plt.scatter(pcs[0][0], pcs[1][1], color = "yellow", alpha =1, s=100, marker="x")
-        #plt.contour( np.flip(fel_data[4], axis=0), colors='white', extent=[min_max_pcs[0][0] , min_max_pcs[0][1], min_max_pcs[1][0], min_max_pcs[1][1]] , alpha=0.5 )            
+        #plt.scatter(pcs[0], pcs[1], color = "black", alpha =0.05, s=0.001)
+        #plt.scatter(minimum_at_data[0], minimum_at_data[1], s=100, color="red", marker="x")
+        #plt.scatter(pcs[0][0], pcs[1][1], color = "yellow", alpha =1, s=100, marker="x")
+        plt.contour( np.flip(fel_data[4], axis=0), colors='white', extent=[min_max_pcs[0][0] , min_max_pcs[0][1], min_max_pcs[1][0], min_max_pcs[1][1]] , alpha=0.5 )            
         xlabel="PC"+str(pc_x)
         ylabel = "PC"+str(pc_y)
         plt.xlabel(xlabel)
@@ -365,8 +373,8 @@ class RmsfPlots:
         reference_rmsf = self.rmsf_dataframe["Ref"]        
         for index, col in enumerate(working_df) : 
             plt.subplot(row_number, col_number, index+1 )
-            plt.plot(self.rmsf_dataframe.resid, reference_rmsf, color="#4bb1b4", marker="o", markersize=3, linestyle='dashed')
-            plt.plot(self.rmsf_dataframe.resid, working_df[col], color="#B44E4B", marker="s" , markersize=3)
+            plt.plot(self.rmsf_dataframe.resid, reference_rmsf, color="#4bb1b4", marker="o", lw=1, markersize=2, linestyle='dashed')
+            plt.plot(self.rmsf_dataframe.resid, working_df[col], color="#B44E4B", marker="s", lw=1 , markersize=2)
             plt.bar(self.rmsf_dataframe.resid, np.sqrt((working_df[col] - reference_rmsf)**2), color="gray"  )
             plt.xlim(range_of_data[0], range_of_data[1])
             plt.ylim(0,0.3)
@@ -535,3 +543,33 @@ def create_colormap(colors, position=None, bit=False, reverse=False, name='custo
         cdict['blue'].append((pos, color[2], color[2]))
     return LinearSegmentedColormap(name, cdict, 256)
 
+class Projection: 
+    def __init__(self, trajectory_path, topology, eigenvalues, eigenvectors): 
+        """
+        A class that calculates the projection of coordinates over a set of 
+        protein modes.
+        """
+        self.pytraj_like_frames = pt.load(trajectory_path, topology) 
+        self.trajectory_path = trajectory_path
+        self.topology = topology
+        self.eigenvalues = eigenvalues 
+        self.eigenvectors = eigenvectors 
+    
+    def reformatTrajObject(self):
+        """ Will generate a traj object of 3 frames if 
+        the input contains less than 3 snapshots. This is 
+        necessary in order for the projection to give 
+        reliable results """
+        if len(self.pytraj_like_frames ) < 3 : 
+            self.processed_traj =  pt.iterload([self.trajectory_path, self.trajectory_path, self.trajectory_path], top=self.topology) 
+        else: 
+            self.processed_traj = self.pytraj_like_frames
+    
+    def getProjection(self, wild_card=':1-232,244-253,263-470@CA,N,C'):
+        """
+        Project the coodinates of snapshots in self.processed_traj in all the 
+        subspaces described by the given eigenvectors/eigenvalues 
+        """
+        self.reformatTrajObject()
+        data = pt.projection(self.processed_traj, wild_card, eigenvalues=self.eigenvalues, eigenvectors=self.eigenvectors, scalar_type='covar')
+        return data
