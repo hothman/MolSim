@@ -260,6 +260,30 @@ def FindMin(data_pc, pc_x, pc_y, bins, data_range ):
     pc1_range = FelRange(data_pc, pc_x )
     pc2_range = FelRange(data_pc, pc_y )
     return  float(pc_projection_1[indexes_min[0]]), float(pc_projection_2[indexes_min[1]] ), pc1_range, pc2_range,  np.rot90(energy)
+
+
+def minFel(pcs, pc1_index, pc2_index, bins, min_max_all_pcs): 
+    """
+    Reruns the closest bins to minim energy in term of projections
+    """
+    pc1=pcs[pc1_index -1 ]
+    pc2=pcs[pc2_index -1 ] 
+    density=np.histogram2d(pc1, pc2, bins=bins, range=min_max_all_pcs)
+    pc2_extand = np.flip(density[1]) # flip the y data to start indexing from bottom to top
+    pc1_extand = density[2]
+    #print([pc1_extand.min(), pc1_extand.max(), pc2_extand.min(), pc2_extand.max()])
+    matrix = np.rot90(density[0])
+    flat_array = density[0].flatten()
+    unique_values = np.unique(  np.sort(flat_array) )    # will convert all 0 values to the lowest density value 
+    min_density = unique_values[1]
+    matrix[ matrix == 0 ] = min_density
+    energy = -0.001985875*298.15*np.log( matrix/matrix.sum() )
+    min_energy =  energy.min()
+    indexes_min = np.where(energy == min_energy)
+    #print(indexes_min)
+    y = pc2_extand[indexes_min[0]-1]  # -1 other wise you will be off the minimum
+    x = pc1_extand[indexes_min[1]-1]
+    return x, y
     
 def getEnergyBoundaries(list_pc, pc_x, pc_y, bins):
     """ Reports the lowest and highest energies in the pc table """
@@ -293,31 +317,28 @@ def Fel(list_pc, col_number, row_number, bins, pc_x, pc_y):
     """
     min_max_pcs= MinMaxPCsXY(list_pc, pc_x, pc_y )
     vmin, vmax = getEnergyBoundaries(list_pc,  pc_x, pc_y, bins )
-    print(vmin, vmax)
     for index,data_pc in enumerate(list_pc): 
         plt.subplot(row_number, col_number, index+1)
         pcs = data_pc  
-        pc1_range = FelRange(data_pc, pc_x )
-        pc2_range = FelRange(data_pc, pc_y )
         fel_data = FindMin(data_pc, pc_x, pc_y, bins, min_max_pcs )
-        global_min_x = fel_data[0]
-        global_min_y = fel_data[1] 
-        #minimum_at_data =  ReturnConfAtMin( data_pc , pc_x, pc_y, [global_min_x , global_min_y])
+        min_proj_x, min_proj_y = minFel(pcs, pc1_index=pc_x, pc2_index=pc_y, bins=bins, min_max_all_pcs = min_max_pcs )
         max_energy = fel_data[4].max()
         fel_data[4][ fel_data[4] == max_energy ] = vmax   # make all the highst energies equals to vmax
-        plt.imshow(fel_data[4], interpolation='bilinear', cmap=cm.Spectral_r, 
-                   extent=[min_max_pcs[0][0] , min_max_pcs[0][1], min_max_pcs[1][0], min_max_pcs[1][1]] ,
-                   aspect="auto", vmin=vmin, vmax=vmax)
+        plt.imshow(fel_data[4], interpolation='bilinear', cmap=cm.Spectral_r,          
+                   aspect="auto", vmin=vmin, vmax=vmax, extent=[min_max_pcs[0][0] , min_max_pcs[0][1], min_max_pcs[1][0], min_max_pcs[1][1]])
+        plt.scatter(min_proj_x, min_proj_y, color='red' )
         #plt.colorbar()
         plt.tight_layout()
-        #plt.scatter(pcs[0], pcs[1], color = "black", alpha =0.05, s=0.001)
-        #plt.scatter(minimum_at_data[0], minimum_at_data[1], s=100, color="red", marker="x")
-        #plt.scatter(pcs[0][0], pcs[1][1], color = "yellow", alpha =1, s=100, marker="x")
-        plt.contour( np.flip(fel_data[4], axis=0), colors='white', extent=[min_max_pcs[0][0] , min_max_pcs[0][1], min_max_pcs[1][0], min_max_pcs[1][1]] , alpha=0.5 )            
+        plt.contour( np.flipud(fel_data[4]), colors='black',  alpha=0.3,  
+         extent=[min_max_pcs[0][0] , min_max_pcs[0][1], min_max_pcs[1][0], min_max_pcs[1][1]], levels=10, vmin=vmin, vmax=vmax   )  
         xlabel="PC"+str(pc_x)
         ylabel = "PC"+str(pc_y)
         plt.xlabel(xlabel)
         plt.ylabel(ylabel)
+    print("""
+    Minimum energy = {0}
+    Maximum energy = {1}
+    """.format(vmin, vmax))
 
 class RmsfCalculation:
     def __init__(self, trajs, reference , offset, labels=[] , start=0, size_rows = 10, index_ref = 0): 
@@ -555,7 +576,7 @@ class Projection:
         self.eigenvalues = eigenvalues 
         self.eigenvectors = eigenvectors 
     
-    def reformatTrajObject(self):
+    def _reformatTrajObject(self):
         """ Will generate a traj object of 3 frames if 
         the input contains less than 3 snapshots. This is 
         necessary in order for the projection to give 
@@ -570,6 +591,6 @@ class Projection:
         Project the coodinates of snapshots in self.processed_traj in all the 
         subspaces described by the given eigenvectors/eigenvalues 
         """
-        self.reformatTrajObject()
+        self._reformatTrajObject()
         data = pt.projection(self.processed_traj, wild_card, eigenvalues=self.eigenvalues, eigenvectors=self.eigenvectors, scalar_type='covar')
         return data
