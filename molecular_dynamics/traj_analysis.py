@@ -214,52 +214,25 @@ def MinMaxPCsXY(list_pc, pcx_idx , pcy_idx):
     adjustment_factor = 32
     return np.array([[min_pcx-adjustment_factor, max_pcx+adjustment_factor], [min_pcy-adjustment_factor,  max_pcy+adjustment_factor]])
 
-def ReturnConfAtMin(data_pc, pc_x, pc_y, minimum_at_bin ): 
+def ReturnConfAtMin(pcs, pc_x, pc_y, minimum_at_bin, bins ): 
     """
     returns the coordinates at the subspace corresponding
     to the closest conformation to the global minimum, calculated from binning 
     the free energy landscape
     """
-    pcs = data_pc[0]
+    minx, maxx, miny, maxy, energy = dataForPlottingFel(pcs, pc1_index=pc_x, pc2_index=pc_y, bins=bins)
+    minimum_at_bin = pcsAtMin(minx, maxx, miny, maxy, energy, bins)
     pc1 = pcs[pc_x-1]
     pc2 = pcs[pc_y-1]
-    minimum = np.array(minimum_at_bin)
-    pc1_pc2 = np.column_stack((pc1, pc2))
+    number_of_snapshots = len(pc2)
+    minimum = np.array( [minimum_at_bin[0][0], minimum_at_bin[1][0] ] )
+    pc1_pc2 = np.column_stack((pc1, pc2))    
     #distance.euclidean(pc1_pc2, minimum)
     distances = [ distance.euclidean(vec, minimum) for vec in pc1_pc2]
     min_distance = np.min(distances)
     index = int(np.where(distances == min_distance)[0])
-    print("Conformation number {} is the closes to the global minimum".format(index+1))
-    return pc1_pc2[index] # coordinates in the subspaces pc_x and pc_y
-
-def FindMin(data_pc, pc_x, pc_y, bins, data_range ): 
-    """
-    returns the projection of the coordinates of the global minimum 
-    from PCA data. 'data_pc', is the PCA from pytraj of a trajectory
-    returns: 
-        0: projection of the global minimum -> x axis 
-        1: projection of the global minimum -> y axis
-        2: range of pc_x values (min, max)
-        3: range of pc_y values (min, max)
-        4: Energy calculated from density data (type array ), with pc_x(raws) and pc_y(columns) as reaction coordinates
-    """
-    pcs = data_pc
-    pc1=pcs[pc_x -1 ]
-    pc2=pcs[pc_y -1 ]   
-    density=np.histogram2d(pc1, pc2, bins=bins, range=data_range, density=False) 
-    matrix = density[0]
-    flat_array = density[0].flatten()
-    unique_values = np.unique(  np.sort(flat_array) )    # will convert all 0 values to the lowest density value 
-    min_density = unique_values[1]
-    matrix[ matrix == 0 ] = min_density
-    energy = -0.001985875*298.15*np.log( matrix/matrix.sum() )
-    min_energy =  energy.min()
-    indexes_min = np.where(energy == min_energy)
-    pc_projection_1 = density[1]   # get the pc values array from the second element in density 
-    pc_projection_2 = density[2] 
-    pc1_range = FelRange(data_pc, pc_x )
-    pc2_range = FelRange(data_pc, pc_y )
-    return  float(pc_projection_1[indexes_min[0]]), float(pc_projection_2[indexes_min[1]] ), pc1_range, pc2_range,  np.rot90(energy)
+    print("Conformation number {0} is the closes to the global minimum. Total number of snapshots: {1}".format(index+1, number_of_snapshots))
+    return index # coordinates in the subspaces pc_x and pc_y
 
 def minMaxPC(pc, pc_x, pc_y):
     pc1=pc[pc_x -1 ]
@@ -374,7 +347,7 @@ def Fel(list_pc, col_number, row_number, bins, pc_x, pc_y):
         energy[ energy == max_energy ] = vmax   # make all the highst energies equals to vmax
         plt.imshow(energy, interpolation='bilinear', cmap=cm.jet,          
                    aspect="auto", vmin=vmin, vmax=vmax, extent=[minx , maxx, miny, maxy])
-        plt.scatter(coorx_min, coory_min ,  color='red' )
+        plt.scatter(coorx_min, coory_min , marker="x", color='white', linewidth=2, s = 80 )
         #plt.colorbar()
         plt.tight_layout()
         plt.contour( np.flipud(energy), colors='white',  alpha=0.4,  
