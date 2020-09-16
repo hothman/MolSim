@@ -261,31 +261,6 @@ def FindMin(data_pc, pc_x, pc_y, bins, data_range ):
     pc2_range = FelRange(data_pc, pc_y )
     return  float(pc_projection_1[indexes_min[0]]), float(pc_projection_2[indexes_min[1]] ), pc1_range, pc2_range,  np.rot90(energy)
 
-
-def minFel(pcs, pc1_index, pc2_index, bins): 
-    """
-    Reruns the closest bins to minim energy in term of projections
-    """
-    pc1=pcs[pc1_index -1 ]
-    pc2=pcs[pc2_index -1 ] 
-    density=np.histogram2d(pc1, pc2, bins=bins, density=False)
-    pc2_extand = np.flip(density[1]) # flip the y data to start indexing from bottom to top
-    pc1_extand = density[2]
-    #print([pc1_extand.min(), pc1_extand.max(), pc2_extand.min(), pc2_extand.max()])
-    matrix = np.rot90(density[0])
-    flat_array = density[0].flatten()
-    unique_values = np.unique(  np.sort(flat_array) )    # will convert all 0 values to the lowest density value 
-    min_density = unique_values[1]
-    matrix[ matrix == 0 ] = min_density
-    energy = -0.001985875*298.15*np.log( matrix/matrix.sum() )
-    min_energy =  energy.min()
-    indexes_min = np.where(energy == min_energy)
-    #print(indexes_min)
-    y = pc2_extand[indexes_min[0]-1]  # -1 other wise you will be off the minimum
-    x = pc1_extand[indexes_min[1]-1]
-
-    return x , y, np.min(pc1_extand), np.max(pc1_extand), np.min(pc2_extand), np.max(pc2_extand)
-
 def minMaxPC(pc, pc_x, pc_y):
     pc1=pc[pc_x -1 ]
     pc2=pc[pc_y -1 ]
@@ -360,6 +335,25 @@ def extentEnergyMatrix(energy_matrix, space_x, space_y, min_max_pcs, max_energy)
 
         return augmented_energy_matrix 
 
+def pcsAtMin(pcs, pc1_index, pc2_index, bins): 
+    pc1=pcs[pc1_index -1 ]
+    pc2=pcs[pc2_index -1 ] 
+    density=np.histogram2d(pc1, pc2, bins=bins, density=False)
+    pc2_extand = np.flip(density[1]) # flip the y data to start indexing from bottom to top
+    pc1_extand = density[2]
+    matrix = np.rot90(density[0])
+    flat_array = density[0].flatten()
+    unique_values = np.unique(  np.sort(flat_array) )    # will convert all 0 values to the lowest density value 
+    min_density = unique_values[1]
+    matrix[ matrix == 0 ] = min_density
+    energy = -0.001985875*298.15*np.log( matrix/matrix.sum() )
+    min_energy =  energy.min()   
+    indexes_min = np.where(energy == min_energy)
+    minx, maxx, miny, maxy = np.min(pc1_extand), np.max(pc1_extand), np.min(pc2_extand), np.max(pc2_extand)
+    spacex = np.linspace(minx,maxx, bins )
+    spacey = np.flip(np.linspace(miny,maxy, bins ))
+    return spacex[indexes_min[1]], spacey[indexes_min[0]], minx, maxx, miny, maxy, energy
+
 def Fel(list_pc, col_number, row_number, bins, pc_x, pc_y): 
     """
     Plotting the FEL 
@@ -370,20 +364,16 @@ def Fel(list_pc, col_number, row_number, bins, pc_x, pc_y):
         plt.subplot(row_number, col_number, index+1)
         pcs = data_pc  
         #minx, maxx, miny, maxy = minMaxPC(data_pc, pc_x, pc_y)
-        fel_data = FindMin(data_pc, pc_x, pc_y, bins, min_max_pcs )
-        min_proj_x, min_proj_y, minx, maxx, miny, maxy = minFel(pcs, pc1_index=pc_x, pc2_index=pc_y, bins=bins )
-        max_energy = fel_data[4].max()
-        spacex = np.linspace(minx,maxx, bins )
-        spacey = np.flip(np.linspace(miny,maxy, bins ))
-        min_energy =  fel_data[4].min()
-        indexes_min = np.where(fel_data[4] == min_energy)   
-        fel_data[4][ fel_data[4] == max_energy ] = vmax   # make all the highst energies equals to vmax
-        plt.imshow(fel_data[4], interpolation='bilinear', cmap=cm.jet,          
+        coorx_min, coory_min, minx, maxx, miny, maxy, energy = pcsAtMin(data_pc,  pc1_index=pc_x, pc2_index=pc_y, bins=bins)
+        max_energy = energy.max()
+        min_energy =  energy.min()
+        energy[ energy == max_energy ] = vmax   # make all the highst energies equals to vmax
+        plt.imshow(energy, interpolation='bilinear', cmap=cm.jet,          
                    aspect="auto", vmin=vmin, vmax=vmax, extent=[minx , maxx, miny, maxy])
-        plt.scatter(spacex[  indexes_min[1]], spacey[  indexes_min[0]] ,  color='red' )
+        plt.scatter(coorx_min, coory_min ,  color='red' )
         #plt.colorbar()
         plt.tight_layout()
-        plt.contour( np.flipud(fel_data[4]), colors='white',  alpha=0.4,  
+        plt.contour( np.flipud(energy), colors='white',  alpha=0.4,  
         extent=[minx , maxx, miny, maxy], levels=10, vmin=vmin, vmax=vmax )  
         xlabel="PC"+str(pc_x)
         ylabel = "PC"+str(pc_y)
@@ -392,7 +382,7 @@ def Fel(list_pc, col_number, row_number, bins, pc_x, pc_y):
     print("""
     Minimum energy = {0}
     Maximum energy = {1}
-    """.format(vmin, vmax))
+    """.format(vmin, vmax  ))
 
 class RmsfCalculation:
     def __init__(self, trajs, reference , offset, labels=[] , start=0, size_rows = 10, index_ref = 0): 
