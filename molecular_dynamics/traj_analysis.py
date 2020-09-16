@@ -246,7 +246,7 @@ def FindMin(data_pc, pc_x, pc_y, bins, data_range ):
     pcs = data_pc
     pc1=pcs[pc_x -1 ]
     pc2=pcs[pc_y -1 ]   
-    density=np.histogram2d(pc1, pc2, bins=bins, range=data_range) 
+    density=np.histogram2d(pc1, pc2, bins=bins, range=data_range, density=False) 
     matrix = density[0]
     flat_array = density[0].flatten()
     unique_values = np.unique(  np.sort(flat_array) )    # will convert all 0 values to the lowest density value 
@@ -262,13 +262,13 @@ def FindMin(data_pc, pc_x, pc_y, bins, data_range ):
     return  float(pc_projection_1[indexes_min[0]]), float(pc_projection_2[indexes_min[1]] ), pc1_range, pc2_range,  np.rot90(energy)
 
 
-def minFel(pcs, pc1_index, pc2_index, bins, min_max_all_pcs): 
+def minFel(pcs, pc1_index, pc2_index, bins): 
     """
     Reruns the closest bins to minim energy in term of projections
     """
     pc1=pcs[pc1_index -1 ]
     pc2=pcs[pc2_index -1 ] 
-    density=np.histogram2d(pc1, pc2, bins=bins, range=min_max_all_pcs)
+    density=np.histogram2d(pc1, pc2, bins=bins, density=False)
     pc2_extand = np.flip(density[1]) # flip the y data to start indexing from bottom to top
     pc1_extand = density[2]
     #print([pc1_extand.min(), pc1_extand.max(), pc2_extand.min(), pc2_extand.max()])
@@ -283,8 +283,15 @@ def minFel(pcs, pc1_index, pc2_index, bins, min_max_all_pcs):
     #print(indexes_min)
     y = pc2_extand[indexes_min[0]-1]  # -1 other wise you will be off the minimum
     x = pc1_extand[indexes_min[1]-1]
-    return x, y
-    
+
+    return x , y, np.min(pc1_extand), np.max(pc1_extand), np.min(pc2_extand), np.max(pc2_extand)
+
+def minMaxPC(pc, pc_x, pc_y):
+    pc1=pc[pc_x -1 ]
+    pc2=pc[pc_y -1 ]
+    return np.min(pc1), np.max(pc1), np.min(pc2), np.max(pc2)
+
+ 
 def getEnergyBoundaries(list_pc, pc_x, pc_y, bins):
     """ Reports the lowest and highest energies in the pc table """
     vmin = None
@@ -293,7 +300,7 @@ def getEnergyBoundaries(list_pc, pc_x, pc_y, bins):
         pcs = data_pc
         pc1=pcs[pc_x -1 ]
         pc2=pcs[pc_y -1 ]
-        density=np.histogram2d(pc1, pc2, bins=bins)
+        density=np.histogram2d(pc1, pc2, bins=bins, density=False)
         matrix = density[0]
         flat_array = density[0].flatten()
         unique_values = np.unique(  np.sort(flat_array) )    # will convert all 0 values to the lowest density value 
@@ -309,7 +316,49 @@ def getEnergyBoundaries(list_pc, pc_x, pc_y, bins):
         elif energy.max() > vmax:
             vmax = energy.max()
     return vmin, vmax
-            
+ 
+def extentEnergyMatrix(energy_matrix, space_x, space_y, min_max_pcs, max_energy): 
+    if len(space_x) == len(space_y): 
+        space_y = np.flip(space_y)
+        step_per_bin_x = space_x[1] - space_x[0]
+        step_per_bin_y = space_y[1] - space_y[0]
+        boundary_at_left_x = space_x[0] - step_per_bin_x/2
+        boundary_at_left_y = space_y[0] - step_per_bin_y/2
+        boundary_at_right_x = space_x[-1] + step_per_bin_x/2
+        boundary_at_right_y = space_y[-1] + step_per_bin_y/2
+        # evaluate the number of bins to add to each dimension side
+        bins_to_add_at_left_x = 0
+        while boundary_at_left_x > min_max_pcs[0][0]:
+            bins_to_add_at_left_x +=1
+            boundary_at_left_x = boundary_at_left_x - step_per_bin_x 
+        bins_to_add_at_right_x = 0
+        while boundary_at_right_x < min_max_pcs[0][1]:
+            bins_to_add_at_right_x +=1
+            boundary_at_right_x = boundary_at_right_x + step_per_bin_x 
+        bins_to_add_at_left_y = 0
+        while boundary_at_left_y > min_max_pcs[1][0]:
+            bins_to_add_at_left_y +=1
+            boundary_at_left_y = boundary_at_left_y - step_per_bin_y 
+        bins_to_add_at_right_y = 0
+        while boundary_at_right_y < min_max_pcs[1][1]:
+            bins_to_add_at_right_y +=1
+            boundary_at_right_y = boundary_at_right_y + step_per_bin_y
+        
+        # a unique number of bins is added to each dimension to keep the square shape of the amtrix
+        n_rows, n_cols = energy_matrix.shape
+        y_bottom_to_stack = np.ones((bins_to_add_at_left_y,n_cols))*max_energy
+        y_top_to_stack = np.ones((bins_to_add_at_right_y ,n_cols))*max_energy
+           
+        augmented_energy_matrix = np.vstack((energy_matrix, y_bottom_to_stack))
+        augmented_energy_matrix = np.vstack(( y_top_to_stack , augmented_energy_matrix))
+
+        n_rows, n_cols = augmented_energy_matrix.shape # update the shape of the matrix
+        x_left_to_stack = np.ones( (n_rows, bins_to_add_at_left_x))*max_energy
+        x_right_to_stack = np.ones((n_rows, bins_to_add_at_right_x))*max_energy
+        augmented_energy_matrix = np.hstack((x_left_to_stack, augmented_energy_matrix))
+        augmented_energy_matrix = np.hstack((augmented_energy_matrix , x_right_to_stack))
+
+        return augmented_energy_matrix 
 
 def Fel(list_pc, col_number, row_number, bins, pc_x, pc_y): 
     """
@@ -320,17 +369,22 @@ def Fel(list_pc, col_number, row_number, bins, pc_x, pc_y):
     for index,data_pc in enumerate(list_pc): 
         plt.subplot(row_number, col_number, index+1)
         pcs = data_pc  
+        #minx, maxx, miny, maxy = minMaxPC(data_pc, pc_x, pc_y)
         fel_data = FindMin(data_pc, pc_x, pc_y, bins, min_max_pcs )
-        min_proj_x, min_proj_y = minFel(pcs, pc1_index=pc_x, pc2_index=pc_y, bins=bins, min_max_all_pcs = min_max_pcs )
+        min_proj_x, min_proj_y, minx, maxx, miny, maxy = minFel(pcs, pc1_index=pc_x, pc2_index=pc_y, bins=bins )
         max_energy = fel_data[4].max()
+        spacex = np.linspace(minx,maxx, bins )
+        spacey = np.flip(np.linspace(miny,maxy, bins ))
+        min_energy =  fel_data[4].min()
+        indexes_min = np.where(fel_data[4] == min_energy)   
         fel_data[4][ fel_data[4] == max_energy ] = vmax   # make all the highst energies equals to vmax
-        plt.imshow(fel_data[4], interpolation='bilinear', cmap=cm.Spectral_r,          
-                   aspect="auto", vmin=vmin, vmax=vmax, extent=[min_max_pcs[0][0] , min_max_pcs[0][1], min_max_pcs[1][0], min_max_pcs[1][1]])
-        plt.scatter(min_proj_x, min_proj_y, color='red' )
+        plt.imshow(fel_data[4], interpolation='bilinear', cmap=cm.jet,          
+                   aspect="auto", vmin=vmin, vmax=vmax, extent=[minx , maxx, miny, maxy])
+        plt.scatter(spacex[  indexes_min[1]], spacey[  indexes_min[0]] ,  color='red' )
         #plt.colorbar()
         plt.tight_layout()
-        plt.contour( np.flipud(fel_data[4]), colors='black',  alpha=0.3,  
-         extent=[min_max_pcs[0][0] , min_max_pcs[0][1], min_max_pcs[1][0], min_max_pcs[1][1]], levels=10, vmin=vmin, vmax=vmax   )  
+        plt.contour( np.flipud(fel_data[4]), colors='white',  alpha=0.4,  
+        extent=[minx , maxx, miny, maxy], levels=10, vmin=vmin, vmax=vmax )  
         xlabel="PC"+str(pc_x)
         ylabel = "PC"+str(pc_y)
         plt.xlabel(xlabel)
