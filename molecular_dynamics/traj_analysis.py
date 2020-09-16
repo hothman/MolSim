@@ -335,7 +335,7 @@ def extentEnergyMatrix(energy_matrix, space_x, space_y, min_max_pcs, max_energy)
 
         return augmented_energy_matrix 
 
-def pcsAtMin(pcs, pc1_index, pc2_index, bins): 
+def dataForPlottingFel(pcs, pc1_index, pc2_index, bins): 
     pc1=pcs[pc1_index -1 ]
     pc2=pcs[pc2_index -1 ] 
     density=np.histogram2d(pc1, pc2, bins=bins, density=False)
@@ -347,12 +347,15 @@ def pcsAtMin(pcs, pc1_index, pc2_index, bins):
     min_density = unique_values[1]
     matrix[ matrix == 0 ] = min_density
     energy = -0.001985875*298.15*np.log( matrix/matrix.sum() )
+    minx, maxx, miny, maxy = np.min(pc1_extand), np.max(pc1_extand), np.min(pc2_extand), np.max(pc2_extand)
+    return  minx, maxx, miny, maxy, energy
+
+def pcsAtMin(minx, maxx, miny, maxy, energy, bins):
     min_energy =  energy.min()   
     indexes_min = np.where(energy == min_energy)
-    minx, maxx, miny, maxy = np.min(pc1_extand), np.max(pc1_extand), np.min(pc2_extand), np.max(pc2_extand)
     spacex = np.linspace(minx,maxx, bins )
     spacey = np.flip(np.linspace(miny,maxy, bins ))
-    return spacex[indexes_min[1]], spacey[indexes_min[0]], minx, maxx, miny, maxy, energy
+    return spacex[indexes_min[1]], spacey[indexes_min[0]]
 
 def Fel(list_pc, col_number, row_number, bins, pc_x, pc_y): 
     """
@@ -364,7 +367,8 @@ def Fel(list_pc, col_number, row_number, bins, pc_x, pc_y):
         plt.subplot(row_number, col_number, index+1)
         pcs = data_pc  
         #minx, maxx, miny, maxy = minMaxPC(data_pc, pc_x, pc_y)
-        coorx_min, coory_min, minx, maxx, miny, maxy, energy = pcsAtMin(data_pc,  pc1_index=pc_x, pc2_index=pc_y, bins=bins)
+        minx, maxx, miny, maxy, energy = dataForPlottingFel(data_pc,  pc1_index=pc_x, pc2_index=pc_y, bins=bins)
+        coorx_min, coory_min = pcsAtMin(minx=minx, maxx=maxx, miny=miny, maxy=maxy, energy=energy, bins=bins)
         max_energy = energy.max()
         min_energy =  energy.min()
         energy[ energy == max_energy ] = vmax   # make all the highst energies equals to vmax
