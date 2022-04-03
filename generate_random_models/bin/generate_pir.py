@@ -1,10 +1,10 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 from Bio import SeqIO
 import argparse
 from modeller import *
 
-def getPirTarget(fasta_seq_file, output_file):
+def getPirTarget(fasta_seq_file):
 	"""
 	read fasta file and generate a PIR format of 
 	unaligned sequences by MODELLER
@@ -14,12 +14,13 @@ def getPirTarget(fasta_seq_file, output_file):
 	env.libs.parameters.read('${LIB}/par.lib')
 	aln = Alignment(env)
 	# append sequences to alm object
-	for record in SeqIO.parse(fasta_seq_file, "fasta"):
+	for i, record in enumerate(SeqIO.parse(fasta_seq_file, "fasta") ):
+		print(i)
+		aln = Alignment(env)
 		aln.append_sequence(str( record.seq.upper()) )
-	#append seq id 
-	for i, sequence in enumerate(aln): 
-		sequence.code = "RANDOMSEQ"+str(i)
-	aln.write(file=output_file)
+		aln[0].code = "RANDOMSEQ"+str(i)
+		aln.write(file="./RANDOMSEQ"+str(i)+".pir")
+
 
 def getPirTemplate(pdb_file, output_file):
 	"""
@@ -43,7 +44,6 @@ if __name__ == "__main__":
 	args = parser.parse_args()
 
 	if args.mode == "target":
-		getPirTarget(args.fasta, args.output)
+		getPirTarget(args.fasta)
 	elif args.mode == "template":
-
 		getPirTemplate(args.pdb, args.output)
