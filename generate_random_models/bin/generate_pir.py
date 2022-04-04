@@ -15,7 +15,6 @@ def getPirTarget(fasta_seq_file):
 	aln = Alignment(env)
 	# append sequences to alm object
 	for i, record in enumerate(SeqIO.parse(fasta_seq_file, "fasta") ):
-		print(i)
 		aln = Alignment(env)
 		aln.append_sequence(str( record.seq.upper()) )
 		aln[0].code = "RANDOMSEQ"+str(i)
@@ -28,11 +27,13 @@ def getPirTemplate(pdb_file, output_file):
 	"""
 	env = Environ()
 	mdl = Model(env, file=pdb_file)
+
 	for c in mdl.chains:
 		if c.filter( structure_types='structureN structureX structureM', chop_nonstd_termini=True):
 			print(c)
 			atom_file, align_code = c.atom_file_and_code(output_file)
 			c.write(output_file, atom_file, align_code, format='PIR', chop_nonstd_termini=True)
+			mdl.write(file='template.pdb', model_format='PDB')
 
 
 if __name__ == "__main__":
