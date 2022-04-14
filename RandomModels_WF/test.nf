@@ -32,7 +32,7 @@ process foldx {
 	"""
 	ln -s /home/nkhoza/tools/FoldX/rotabase.txt
         PATH=/home/nkhoza/tools/FoldX:$PATH
-    	foldx --command=Stability --pdb=\$repaired
+    	foldx --command=Stability --pdb=${repaired}
 	"""
 }
 
@@ -47,7 +47,7 @@ process encom {
 	script:
 	"""
 	PATH=/home/nkhoza/tools/ENCoM/bin:$PATH
-	build_encom -i \$repaired -cov \$repaired.cov -o \$repaired.eigen
+	build_encom -i ${repaired} -cov ${repaired}.cov -o ${repaired}.eigen
 	"""
 }
 
@@ -58,6 +58,6 @@ process encom_processing {
 	
 	script:
 	"""
-	python sub_encom.py >> final.txt
+	sub_encom.py
 	"""
 }
