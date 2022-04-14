@@ -48,6 +48,7 @@ process encom {
 	file(repaired) from repaired_encom
 
 	output:
+	file("*.eigen") into DDGnDS
 	
 	script:
 	"""
@@ -56,5 +57,16 @@ process encom {
 	do
 		build_encom -i \$repaired -cov \$repaired.cov -o \$repaired.eigen
 	done
+	"""
+}
+
+process encom_processing {
+	
+	input:
+	file(eigen) from DDGnDS
+	
+	script:
+	"""
+	python sub_encom.py >> final.txt
 	"""
 }
