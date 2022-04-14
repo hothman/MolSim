@@ -66,7 +66,7 @@ for file in os.listdir(os.chdir(path)):
             mut_encom.parse_eigen()
             mut_eigenvectors = mut_encom.eigenvectors
             mut_eigenvalues = mut_encom.eigenvalues
-            wt_encom = Encom("/home/nkhoza/Haplotypes_ENCoM/CYP2A13/CYP2A13_WT.eigen")
+            wt_encom = Encom("/path/to/WT/.eigen")
             wt_encom.parse_eigen()
             mut_eigenvectors = wt_encom.eigenvectors
             mut_eigenvalues = wt_encom.eigenvalues
