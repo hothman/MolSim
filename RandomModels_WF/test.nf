@@ -17,10 +17,7 @@ process repair {
         """
 	ln -s /home/nkhoza/tools/FoldX/rotabase.txt 
 	PATH=/home/nkhoza/tools/FoldX:$PATH
-	for pdb in ${pdb}
-	do
-		foldx --command=RepairPDB --pdb=\$pdb
-	done 
+	foldx --command=RepairPDB --pdb=${pdb} 
         """
 }
 
@@ -35,10 +32,7 @@ process foldx {
 	"""
 	ln -s /home/nkhoza/tools/FoldX/rotabase.txt
         PATH=/home/nkhoza/tools/FoldX:$PATH
-	for repaired in ${repaired}
-	do
-    	    foldx --command=Stability --pdb=\$repaired
-    	done
+    	foldx --command=Stability --pdb=${repaired}
 	"""
 }
 
@@ -53,10 +47,7 @@ process encom {
 	script:
 	"""
 	PATH=/home/nkhoza/tools/ENCoM/bin:$PATH
-	for repaired in ${repaired}
-	do
-		build_encom -i \$repaired -cov \$repaired.cov -o \$repaired.eigen
-	done
+	build_encom -i ${repaired} -cov ${repaired}.cov -o ${repaired}.eigen
 	"""
 }
 
@@ -67,6 +58,6 @@ process encom_processing {
 	
 	script:
 	"""
-	python sub_encom.py >> final.txt
+	sub_encom.py
 	"""
 }
