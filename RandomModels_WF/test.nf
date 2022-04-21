@@ -57,7 +57,7 @@ process encom_processing {
 	
 	script:
 	"""
-	get_entropy.py --cov ${cov} --output ./{cov)_output.csv
+	get_entropy.py --cov ${cov} --output ./${cov)_output.csv
 	"""
 }
 
