@@ -1,8 +1,6 @@
 #!/usr/bin/env nextflow
 
 params.foldx = "/home/nkhoza/generate_random_models/FoldX_ENCoM/testing/*.pdb"
-params.encom = "path/to/*_Repair.pdb"
-params.outfolder = "./FxE_output"
 
 pdb = channel.fromPath(params.foldx)
 process repair {
@@ -15,8 +13,6 @@ process repair {
 
         script:
         """
-	ln -s /home/nkhoza/tools/FoldX/rotabase.txt 
-	PATH=/home/nkhoza/tools/FoldX:$PATH
 	foldx --command=RepairPDB --pdb=${pdb} 
         """
 }
@@ -27,11 +23,12 @@ process foldx {
 
 	input:
 	file(repaired) from repaired_foldx
+	
+	output:
+	file("*_ST.fxout") into dG
 
 	script:
 	"""
-	ln -s /home/nkhoza/tools/FoldX/rotabase.txt
-        PATH=/home/nkhoza/tools/FoldX:$PATH
     	foldx --command=Stability --pdb=${repaired}
 	"""
 }
@@ -42,11 +39,10 @@ process encom {
 	file(repaired) from repaired_encom
 
 	output:
-	file("*.eigen") into DDGnDS
+	file("*.cov") into cov
 	
 	script:
 	"""
-	PATH=/home/nkhoza/tools/ENCoM/bin:$PATH
 	build_encom -i ${repaired} -cov ${repaired}.cov -o ${repaired}.eigen
 	"""
 }
@@ -54,10 +50,16 @@ process encom {
 process encom_processing {
 	
 	input:
-	file(eigen) from DDGnDS
+	file(cov) from cov
+	
+	output:
+	file(*_output.cov) into	dS
 	
 	script:
 	"""
-	sub_encom.py
+	get_entropy.py --cov ${cov} --output ./{cov)_output.csv
 	"""
 }
+
+entopy = dS.collectFile(name: "./entropy_all.csv", newLine: true, skip: 1, keepHeader: true)
+folding_energy = dG.collectFile(name: "./folding_energy_all.csv", newLine: true, skip: 1, keepHeader: true)
