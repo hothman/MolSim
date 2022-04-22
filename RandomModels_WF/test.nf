@@ -1,6 +1,8 @@
 #!/usr/bin/env nextflow
 
-params.foldx = "/home/nkhoza/generate_random_models/FoldX_ENCoM/testing/*.pdb"
+params.foldx = "/path_to/*.pdb"
+params.rotabase = "/path/to/rotabase/rotabase.txt"
+params.output= "entropy_ddG_all.csv"
 
 pdb = channel.fromPath(params.foldx)
 process repair {
@@ -13,6 +15,7 @@ process repair {
 
         script:
         """
+        ln -s ${params.rotabase}
 	foldx --command=RepairPDB --pdb=${pdb} 
         """
 }
@@ -29,6 +32,7 @@ process foldx {
 
 	script:
 	"""
+	ln -s ${params.rotabase}
     	foldx --command=Stability --pdb=${repaired}
 	"""
 }
@@ -40,26 +44,41 @@ process encom {
 
 	output:
 	file("*.cov") into cov
+	val(name) into the_basename
 	
 	script:
+		name = repaired.baseName.replaceFirst(".pdb","")
+
 	"""
-	build_encom -i ${repaired} -cov ${repaired}.cov -o ${repaired}.eigen
+	build_encom -i ${repaired} -cov ${name}.cov -o ${name}.eigen
 	"""
 }
 
 process encom_processing {
-	
+	echo true
 	input:
-	file(cov) from cov
+	file(cov_file) from cov
+	val(name) from the_basename
 	
 	output:
-	file(*_output.cov) into	dS
+	file("*.csv") into dS
 	
 	script:
 	"""
-	get_entropy.py --cov ${cov} --output ./${cov)_output.csv
+	get_entropy.py --cov ${cov_file} --output ${name}.csv
 	"""
 }
 
-entopy = dS.collectFile(name: "./entropy_all.csv", newLine: true, skip: 1, keepHeader: true)
-folding_energy = dG.collectFile(name: "./folding_energy_all.csv", newLine: true, skip: 1, keepHeader: true)
+process outputCsv {
+	echo true
+	publishDir "./", mode:'copy'
+	input: 
+		file(all_data) from dS.collect()
+	output: 
+		file(params.output)
+	 
+	"""
+	echo "tag,S_vib" > ${params.output}
+	cat $all_data >> ${params.output}
+	"""
+}
