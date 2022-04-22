@@ -53,7 +53,7 @@ process encom_processing {
 	file(cov) from cov
 	
 	output:
-	file("*_output.cov") into dS
+	file("${cov}_output.cov") into dS
 	
 	script:
 	"""
