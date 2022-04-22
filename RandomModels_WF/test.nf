@@ -53,11 +53,11 @@ process encom_processing {
 	file(cov) from cov
 	
 	output:
-	file(*_output.cov) into	dS
+	file("*_output.cov") into dS
 	
 	script:
 	"""
-	get_entropy.py --cov ${cov} --output ./${cov)_output.csv
+	get_entropy.py --cov ${cov} --output ./${cov}_output.csv
 	"""
 }
 
