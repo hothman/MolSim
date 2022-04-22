@@ -61,11 +61,19 @@ process encom_processing {
 	val(name) from the_basename
 	
 	output:
+<<<<<<< HEAD
 	file("*.csv") into dS
 	
 	script:
 	"""
 	get_entropy.py --cov ${cov_file} --output ${name}.csv
+=======
+	file("${cov}_output.cov") into dS
+	
+	script:
+	"""
+	get_entropy.py --cov ${cov} --output ./${cov}_output.csv
+>>>>>>> 8294394c7f3c9616becade037827b8eea33d7529
 	"""
 }
 
