@@ -5,8 +5,9 @@ params.rotabase = "/media/houcem/theDrum/modules/foldx/rotabase.txt"
 params.output= "entropy_ddG_all.csv"
 
 pdb = channel.fromPath(params.foldx)
-process repair {
 
+process repair {
+	publishDir "./repaired_pdb", mode:'copy'
         input:
         file(pdb) from pdb
 
