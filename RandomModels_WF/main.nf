@@ -1,7 +1,7 @@
 #!/usr/bin/env nextflow
 
-params.foldx = "/path_to/*.pdb"
-params.rotabase = "/path/to/rotabase/rotabase.txt"
+params.foldx = "/media/houcem/theDrum/BILIM/nhlamulo/MolSim/RandomModels_WF/test/*.pdb"
+params.rotabase = "/media/houcem/theDrum/modules/foldx/rotabase.txt"
 params.output= "entropy_ddG_all.csv"
 
 pdb = channel.fromPath(params.foldx)
@@ -54,26 +54,20 @@ process encom {
 	"""
 }
 
-process encom_processing {
+process processOutputs {
 	echo true
 	input:
 	file(cov_file) from cov
+	file(dg_file) from dG
 	val(name) from the_basename
 	
 	output:
-<<<<<<< HEAD
 	file("*.csv") into dS
 	
 	script:
 	"""
-	get_entropy.py --cov ${cov_file} --output ${name}.csv
-=======
-	file("${cov}_output.cov") into dS
-	
-	script:
-	"""
-	get_entropy.py --cov ${cov} --output ./${cov}_output.csv
->>>>>>> 8294394c7f3c9616becade037827b8eea33d7529
+	get_entropy_dG.py --cov ${cov_file} --foldx ${dg_file} --output ${name}.csv
+
 	"""
 }
 
@@ -86,7 +80,7 @@ process outputCsv {
 		file(params.output)
 	 
 	"""
-	echo "tag,S_vib" > ${params.output}
+	echo "tag_encom,S_vib,tag_foldx,dG" > ${params.output}
 	cat $all_data >> ${params.output}
 	"""
 }
